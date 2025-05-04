@@ -8,7 +8,7 @@ with open("LICENSE", "r", encoding="utf-8") as fh:
 
 setup(
     name="sedo",
-    version="0.1.5",
+    version="1.0.0",
     author="safe049",
     author_email="safe049@163.com",
     description="Social Entropy Diffusion Optimization Algorithm (SEDO)",
