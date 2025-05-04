@@ -277,7 +277,7 @@ if __name__ == "__main__":
         all_pso_histories.append(avg_pso_history)
 
         # 绘图：每个函数单独一张图
-        plot_convergence(sedo_histories, pso_histories, f"{func_name} Function (Average of {N_RUNS} runs)")
+        #plot_convergence(sedo_histories, pso_histories, f"{func_name} Function (Average of {N_RUNS} runs)")
 
 
     # 输出表格
