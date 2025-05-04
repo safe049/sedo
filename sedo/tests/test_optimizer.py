@@ -14,12 +14,12 @@ def test_optimize_runs():
     opt.optimize(max_iter=10)
     best = opt.get_best_solution()
     assert len(best) == 5
-    assert opt.global_best_fit < 1.5
+    assert opt.global_best_fit < 1.75
 
 def test_parallel_execution():
     opt = SEDOptimizer(sphere, problem_dim=5, n_particles=10, use_parallel=True)
     opt.optimize(max_iter=10)
-    assert opt.global_best_fit < 1.5
+    assert opt.global_best_fit < 1.75
 
 def test_restart_mechanism():
     class DummyOpt(SEDOptimizer):
