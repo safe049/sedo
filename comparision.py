@@ -1,6 +1,7 @@
 import numpy as np
 import time
 from typing import List, Tuple, Callable, Optional, Union
+import statistics
 
 # 引入你的 SEDO 算法
 from sedo.optimizer import SEDOptimizer
@@ -105,13 +106,13 @@ class PSOOptimizer:
 # 绘制收敛曲线
 import matplotlib.pyplot as plt
 
-def plot_convergence(sedo_history, pso_history):
+def plot_convergence(sedo_history, pso_history, title):
     plt.figure(figsize=(10, 6))
     plt.plot(sedo_history, label='SEDO', linestyle='--', marker='.')
     plt.plot(pso_history, label='PSO', linestyle='-', marker='x')
     plt.xlabel("Iteration")
     plt.ylabel("Best Fitness")
-    plt.title("Convergence Curve Comparison: SEDO vs PSO")
+    plt.title(f"Convergence Curve Comparison: {title}")
     plt.legend()
     plt.grid(True)
     plt.show()
@@ -122,133 +123,81 @@ if __name__ == "__main__":
     DIMENSIONS = 10
     MAX_ITER = 100
     BOUNDS = [(-5, 5)] * DIMENSIONS
+    N_RUNS = 5  # 每个测试运行5次
 
-    # 测试 Sphere 函数
-    print("\n=== Testing on Sphere Function ===")
-    
-    # SEDO
-    print("\nRunning SEDO...")
-    sedo_opt = SEDOptimizer(
-        objective_func=sphere,
-        problem_dim=DIMENSIONS,
-        n_particles=30,
-        bounds=BOUNDS,
-        use_parallel=True
-    )
-    sedo_opt.optimize(MAX_ITER)
-    sedo_sol = sedo_opt.get_best_solution()
-    sedo_fit = sedo_opt.global_best_fit
-    sedo_hist = [h['best_fitness'] for h in sedo_opt.history if h['best_fitness'] is not None]
-
-    # PSO
-    print("\nRunning PSO...")
-    pso_opt = PSOOptimizer(
-        objective_func=sphere,
-        problem_dim=DIMENSIONS,
-        n_particles=30,
-        bounds=BOUNDS,
-        use_parallel=False
-    )
-    pso_opt.optimize(MAX_ITER)
-    pso_sol = pso_opt.get_best_solution()
-    pso_fit = pso_opt.gbest_fitness
-    pso_hist = pso_opt.history
-
-    print("\nSphere Function Results:")
-    print(f"{'Algorithm':<10} {'Best Fitness':<15} {'Time Taken':<15}")
-    print("-" * 40)
-    print(f"{'SEDO':<10} {sedo_fit:<15.6f} N/A")
-    print(f"{'PSO':<10} {pso_fit:<15.6f} N/A")
-
-    plot_convergence(sedo_hist, pso_hist)
-
-
-    # 测试 Rosenbrock 函数
-    print("\n=== Testing on Rosenbrock Function ===")
-    
-    # SEDO
-    print("\nRunning SEDO...")
-    sedo_opt = SEDOptimizer(
-        objective_func=rosenbrock,
-        problem_dim=DIMENSIONS,
-        n_particles=30,
-        bounds=BOUNDS,
-        use_parallel=True
+    def run_multiple_tests(objective_func, func_name):
+        sedo_fitnesses = []
+        pso_fitnesses = []
+        sedo_histories = []
+        pso_histories = []
         
-    )
-    sedo_opt.optimize(MAX_ITER)
-    sedo_sol_r = sedo_opt.get_best_solution()
-    sedo_fit_r = sedo_opt.global_best_fit
-    sedo_hist_r = [h['best_fitness'] for h in sedo_opt.history if h['best_fitness'] is not None]
-
-    # PSO
-    print("\nRunning PSO...")
-    pso_opt = PSOOptimizer(
-        objective_func=rosenbrock,
-        problem_dim=DIMENSIONS,
-        n_particles=30,
-        bounds=BOUNDS,
-        use_parallel=False
-    )
-    pso_opt.optimize(MAX_ITER)
-    pso_sol_r = pso_opt.get_best_solution()
-    pso_fit_r = pso_opt.gbest_fitness
-    pso_hist_r = pso_opt.history
-
-    print("\nRosenbrock Function Results:")
-    print(f"{'Algorithm':<10} {'Best Fitness':<15} {'Time Taken':<15}")
-    print("-" * 40)
-    print(f"{'SEDO':<10} {sedo_fit_r:<15.6f} N/A")
-    print(f"{'PSO':<10} {pso_fit_r:<15.6f} N/A")
-
-    plot_convergence(sedo_hist_r, pso_hist_r)
-
-
-    # 测试 Ackley 函数
-    print("\n=== Testing on Ackley Function ===")
+        print(f"\n=== Testing on {func_name} Function ===")
+        
+        for run in range(N_RUNS):
+            print(f"\nRun {run+1}/{N_RUNS}")
+            
+            # SEDO
+            print("\nRunning SEDO...")
+            sedo_opt = SEDOptimizer(
+                objective_func=objective_func,
+                problem_dim=DIMENSIONS,
+                n_particles=30,
+                bounds=BOUNDS,
+                use_parallel=True
+            )
+            sedo_opt.optimize(MAX_ITER)
+            sedo_fitnesses.append(sedo_opt.global_best_fit)
+            sedo_hist = [h['best_fitness'] for h in sedo_opt.history if h['best_fitness'] is not None]
+            sedo_histories.append(sedo_hist)
+            
+            # PSO
+            print("\nRunning PSO...")
+            pso_opt = PSOOptimizer(
+                objective_func=objective_func,
+                problem_dim=DIMENSIONS,
+                n_particles=30,
+                bounds=BOUNDS,
+                use_parallel=False
+            )
+            pso_opt.optimize(MAX_ITER)
+            pso_fitnesses.append(pso_opt.gbest_fitness)
+            pso_histories.append(pso_opt.history)
+        
+        # 计算平均适应度和收敛曲线
+        avg_sedo_fit = statistics.mean(sedo_fitnesses)
+        avg_pso_fit = statistics.mean(pso_fitnesses)
+        
+        # 计算平均收敛曲线
+        min_length = min(len(h) for h in sedo_histories)
+        avg_sedo_hist = [statistics.mean([h[i] for h in sedo_histories]) for i in range(min_length)]
+        
+        min_length = min(len(h) for h in pso_histories)
+        avg_pso_hist = [statistics.mean([h[i] for h in pso_histories]) for i in range(min_length)]
+        
+        print(f"\n{func_name} Function Results (Average of {N_RUNS} runs):")
+        print(f"{'Algorithm':<10} {'Avg Best Fitness':<15} {'Std Dev':<15}")
+        print("-" * 40)
+        print(f"{'SEDO':<10} {avg_sedo_fit:<15.6f} {statistics.stdev(sedo_fitnesses):<15.6f}")
+        print(f"{'PSO':<10} {avg_pso_fit:<15.6f} {statistics.stdev(pso_fitnesses):<15.6f}")
+        
+        plot_convergence(avg_sedo_hist, avg_pso_hist, f"{func_name} Function (Average of {N_RUNS} runs)")
+        
+        return avg_sedo_fit, avg_pso_fit, statistics.stdev(sedo_fitnesses), statistics.stdev(pso_fitnesses)
     
-    # SEDO
-    print("\nRunning SEDO...")
-    sedo_opt = SEDOptimizer(
-        objective_func=ackley,
-        problem_dim=DIMENSIONS,
-        n_particles=30,
-        bounds=BOUNDS,
-        use_parallel=True
-    )
-    sedo_opt.optimize(MAX_ITER)
-    sedo_sol_a = sedo_opt.get_best_solution()
-    sedo_fit_a = sedo_opt.global_best_fit
-    sedo_hist_a = [h['best_fitness'] for h in sedo_opt.history if h['best_fitness'] is not None]
-
-    # PSO
-    print("\nRunning PSO...")
-    pso_opt = PSOOptimizer(
-        objective_func=ackley,
-        problem_dim=DIMENSIONS,
-        n_particles=30,
-        bounds=BOUNDS,
-        use_parallel=False
-    )
-    pso_opt.optimize(MAX_ITER)
-    pso_sol_a = pso_opt.get_best_solution()
-    pso_fit_a = pso_opt.gbest_fitness
-    pso_hist_a = pso_opt.history
-
-    print("\nAckley Function Results:")
-    print(f"{'Algorithm':<10} {'Best Fitness':<15} {'Time Taken':<15}")
-    print("-" * 40)
-    print(f"{'SEDO':<10} {sedo_fit_a:<15.6f} N/A")
-    print(f"{'PSO':<10} {pso_fit_a:<15.6f} N/A")
-
-    plot_convergence(sedo_hist_a, pso_hist_a)
+    # 运行所有测试
+    sphere_sedo, sphere_pso, sphere_sedo_std, sphere_pso_std = run_multiple_tests(sphere, "Sphere")
+    rosenbrock_sedo, rosenbrock_pso, rosenbrock_sedo_std, rosenbrock_pso_std = run_multiple_tests(rosenbrock, "Rosenbrock")
+    ackley_sedo, ackley_pso, ackley_sedo_std, ackley_pso_std = run_multiple_tests(ackley, "Ackley")
 
     print("\nAll Tests Complete!")
-    print("=" * 40)
-    print("Total Test Results:")
-    print(f"{'Function':<15} {'SEDO':<15} {'PSO':<15}")
-    print("-" * 40)
-    print(f"{'Sphere':<15} {sedo_fit:<15.6f} {pso_fit:<15.6f}")
-    print(f"{'Rosenbrock':<15} {sedo_fit_r:<15.6f} {pso_fit_r:<15.6f}")
-    print(f"{'Ackley':<15} {sedo_fit_a:<15.6f} {pso_fit_a:<15.6f}")
-    print("=" * 40)
+    print("=" * 60)
+    print("Total Test Results (Average of 5 runs):")
+    print(f"{'Function':<15} {'Algorithm':<10} {'Avg Fitness':<15} {'Std Dev':<15}")
+    print("-" * 60)
+    print(f"{'Sphere':<15} {'SEDO':<10} {sphere_sedo:<15.6f} {sphere_sedo_std:<15.6f}")
+    print(f"{'Sphere':<15} {'PSO':<10} {sphere_pso:<15.6f} {sphere_pso_std:<15.6f}")
+    print(f"{'Rosenbrock':<15} {'SEDO':<10} {rosenbrock_sedo:<15.6f} {rosenbrock_sedo_std:<15.6f}")
+    print(f"{'Rosenbrock':<15} {'PSO':<10} {rosenbrock_pso:<15.6f} {rosenbrock_pso_std:<15.6f}")
+    print(f"{'Ackley':<15} {'SEDO':<10} {ackley_sedo:<15.6f} {ackley_sedo_std:<15.6f}")
+    print(f"{'Ackley':<15} {'PSO':<10} {ackley_pso:<15.6f} {ackley_pso_std:<15.6f}")
+    print("=" * 60)

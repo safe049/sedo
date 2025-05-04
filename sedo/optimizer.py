@@ -12,7 +12,7 @@ class SEDOptimizer:
         problem_dim: int,
         n_particles: int = 30,
         barrier_height: float = 0.5,
-        entropy_threshold: float = 0.7,  # 优化点1：降低熵阈值
+        entropy_threshold: float = 0.7,  
         temperature: float = 1.0,
         bounds: Optional[List[Tuple[float, float]]] = None,
         multi_objective: bool = False,
@@ -21,7 +21,7 @@ class SEDOptimizer:
         discrete_dims: Optional[List[int]] = None
     ):
         """
-        Social Entropy Diffusion Optimization (SEDO) 核心优化器（优化增强版）
+        Social Entropy Diffusion Optimization (SEDO) 核心优化器
         参数:
             objective_func: 目标函数，输入为 np.ndarray，输出为浮点数或列表（多目标）
             problem_dim: 问题维度
@@ -64,6 +64,8 @@ class SEDOptimizer:
         # Bass扩散模型参数（优化点3）
         self.p_innovate = 0.1   # 创新系数（非线性更新）
         self.q_imitate = 0.5    # 模仿系数（非线性更新）
+
+        self.entropy_threshold = entropy_threshold
         
         # 日志与多样性监控
         self.diversity_history = []
@@ -278,4 +280,3 @@ class SEDOptimizer:
             return np.array([p.position for p in self.global_best_fit])
         else:
             return self.global_best_pos
-            
