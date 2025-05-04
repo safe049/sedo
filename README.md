@@ -20,7 +20,7 @@
 ### 安装方法
 
 ```bash
-pip install sedo-optimizer
+pip install sedo
 ```
 
 ### 快速开始
@@ -131,7 +131,7 @@ An innovative global optimization algorithm inspired by sociology and quantum ph
 ### Installation
 
 ```bash
-pip install sedo-optimizer
+pip install sedo
 ```
 
 ### Quick Start
