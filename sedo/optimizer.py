@@ -222,7 +222,7 @@ class SEDOptimizer:
             particle.fitness = res.fun
 
     def _is_unimodal(self, num_samples=50, threshold=0.1):
-        if "Sphere" or "Rastrigin" in self.objective_func.__name__:  
+        if "Sphere" in self.objective_func.__name__ or "Rastrigin" in self.objective_func.__name__:  
             return True
         # 生成随机样本点
         samples = np.array([self._sample_in_bounds() for _ in range(num_samples)])
