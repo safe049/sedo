@@ -1,0 +1,83 @@
+# Python 编译文件
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyc
+*$py.class
+
+# IPython notebook 的缓存
+.ipynb_checkpoints/
+
+# C扩展模块编译文件
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller 构建文件
+logs/
+pid/
+*.pid
+*.log
+*.lock
+*.socket
+*.db
+*.sqlite3
+
+# IDE 与编辑器配置文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# 测试相关
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+nosetests.xml
+junit.xml
+*.log
+*.xml
+
+# 文档构建输出
+docs/_build/
+**/sitemap.txt
+**/sitemap.xml
+**/.nojekyll
+**/.DS_Store
+
+# 虚拟环境
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.virtualenvs/
+
+# OS 相关文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# setup.py 构建生成
+sedo.egg-info/
