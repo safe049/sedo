@@ -278,3 +278,4 @@ class SEDOptimizer:
             return np.array([p.position for p in self.global_best_fit])
         else:
             return self.global_best_pos
+            
