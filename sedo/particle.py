@@ -1,6 +1,6 @@
 import numpy as np
 import random
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Any
 
 class ExplorationState:
     """表示粒子处于探索状态"""
@@ -26,7 +26,7 @@ class QuantumParticle:
         self.velocity: Optional[np.ndarray] = None
         self.fitness: float = float('inf')
         self.collapsed: bool = False
-        self.state: Optional[Any] = None
+        self.state: Optional[Any] = None  # 当前状态（Exploration/Exploitation）
 
     def set_position(self, position: np.ndarray, bounds: List[Tuple[float, float]]) -> None:
         pos = np.array(position)
@@ -48,3 +48,14 @@ class QuantumParticle:
             self.position[i] = round(self.position[i])
 
         self.velocity = np.zeros_like(self.position)
+
+    def reset_state(self):
+        """
+        重置粒子的量子状态与熵值
+        """
+        self.entropy_phase = complex(random.random(), random.random())
+        self.positive_entropy = random.random()
+        self.negative_entropy = random.random()
+        self.collapsed = False
+        self.state = None  # 回到叠加态
+        self.fitness = float('inf')
