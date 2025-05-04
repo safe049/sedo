@@ -225,8 +225,48 @@ class SEDOptimizer:
     def _tabu_jump(self):
         pass  # 可选实现
 
-    def _local_search(self, particle):
-        pass  # 可扩展为 2-opt 等排列优化算法
+    def _local_search_2opt(self, particle):
+        """
+        使用 2-opt 算法对排列型解进行局部优化
+        :param particle: 当前粒子
+        """
+        if not self.is_permutation:
+            return
+
+        route = np.argsort(particle.position).astype(int)
+        best_route = route.copy()
+        best_fitness = self.objective_func(best_route)
+
+        improved = True
+        while improved:
+            improved = False
+            for i in range(1, len(route) - 2):
+                for j in range(i + 1, len(route) - 1):
+                    new_route = self._two_opt_swap(best_route, i, j)
+                    new_fitness = self.objective_func(new_route)
+
+                    # 单目标优化
+                    if not self.multi_objective:
+                        if new_fitness < best_fitness:
+                            best_route = new_route
+                            best_fitness = new_fitness
+                            improved = True
+                    # 多目标优化
+                    else:
+                        if self._is_dominated(new_fitness, best_fitness) and not self._is_dominated(best_fitness, new_fitness):
+                            best_route = new_route
+                            best_fitness = new_fitness
+                            improved = True
+            if improved:
+                particle.position = np.random.rand(self.problem_dim)
+                particle.position[best_route] += np.linspace(0, 1, len(best_route)) * 0.01  # 微调以保持顺序
+                particle.fitness = best_fitness
+
+    def _two_opt_swap(self, route, i, j):
+        """执行一次 2-opt swap"""
+        new_route = np.copy(route)
+        new_route[i:j+1] = new_route[i:j+1][::-1]
+        return new_route
 
     def _is_unimodal(self, num_samples=50, threshold=0.1):
         if self.multi_objective:
@@ -289,15 +329,51 @@ class SEDOptimizer:
                     new_dim = self._cultural_crossover(p, partner)
                     p.cultural_dimension = new_dim
                 self._fine_tune_development(p)
+
             self._evaluate_fitness()
+          # 后期阶段启用局部搜索
+            if iter > int(max_iter * 0.7):
+                top_k = 5
+                sorted_particles = sorted(self.particles, key=lambda x: x.fitness if not self.multi_objective else sum(x.fitness))
+                candidates = sorted_particles[:top_k]
+                for p in candidates:
+                    self._local_search_2opt(p)
+                self._evaluate_fitness()
             print(f"Iteration {iter+1}/{max_iter}, Best Fitness: {self.global_best_fit}")
             if callback:
                 callback(self)
 
+
+    def _remove_duplicate_solutions(self, solutions):
+        """
+        过滤重复解（支持浮点数和整数）
+        :param solutions: list of objects (list/tuple/np.ndarray)
+        :return: 去重后的解
+        """
+        seen = set()
+        unique_solutions = []
+        for sol in solutions:
+            # 如果是 numpy 数组，保留五位小数防止浮点误差，并将 np.int64 转换为 int
+            if isinstance(sol, np.ndarray):
+                key = tuple(np.round(sol, 5).astype(int))
+            elif isinstance(sol, list):
+                key = tuple(map(lambda x: round(x, 5) if isinstance(x, float) else int(x), sol))
+            else:
+                key = sol
+            if key not in seen:
+                seen.add(key)
+                unique_solutions.append(sol)
+        return unique_solutions
+
+
     def get_best_solution(self):
         if self.multi_objective:
-            return np.array([p.position for p in self.global_best_fit])
+            raw_solutions = [p.fitness for p in self.global_best_fit]
+            return self._remove_duplicate_solutions(raw_solutions)
         elif self.is_permutation:
             return np.argsort(self.global_best_pos).astype(int)
         else:
             return self.global_best_pos
+
+# TODO: 离散型优化问题：
+# Rastrigin与Michalewicz函数的适应度不良

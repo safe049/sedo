@@ -42,7 +42,8 @@ opt = SEDOptimizer(
     n_particles=30,
     bounds=[(0, 7)] * 8,
     discrete_dims=list(range(8)),
-    init_method='lhs'
+    init_method='lhs',
+    is_permutation=True
 )
 
 opt.optimize(max_iter=150)

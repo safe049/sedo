@@ -20,7 +20,8 @@ opt = SEDOptimizer(
     problem_dim=len(cities),
     n_particles=30,
     bounds=[(0, len(cities)-1)] * len(cities),
-    discrete_dims=list(range(len(cities)))
+    discrete_dims=list(range(len(cities))),
+    is_permutation=True
 )
 
 opt.optimize(max_iter=150)
