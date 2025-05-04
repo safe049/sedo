@@ -1,6 +1,6 @@
 # SEDO 开发文档 | Social Entropy Diffusion Optimization (SEDO) Development Documentation
 
-[[English]](#english-version) | [[中文]](#chinese-version)
+[[English]](#english-version) | [[中文]](#chinese-version) | [[API文档]](api.md)
 
 <a id="chinese-version"></a>
 
@@ -73,7 +73,7 @@ optimizer.optimize(max_iter=100)
 <a id="english-version"></a>
 ## Social Entropy Diffusion Optimization (SEDO) Development Documentation
 
-[[English]](#english-version) | [[中文]](#chinese-version)
+[[English]](#english-version) | [[中文]](#chinese-version) | [[API Documentation]](api.md)
 
 ## 1. Algorithm Overview
 

@@ -1,8 +1,6 @@
-以下是为该算法编写的完善API文档，包含所有开发用函数、方法、类及其参数说明：
-
----
 
 # SEDO (Social Entropy Diffusion Optimization) API 文档
+[[开发文档]](development.md) | [[English]](#sedo-social-entropy-diffusion-optimization-api) 
 
 ## 1. 模块结构
 - **base.py**: 定义优化器的抽象基类。
@@ -209,3 +207,211 @@ print("Best Score:", search_cv.best_score_)
 - **最后更新**: 2025年5月4日
 
 ---
+
+# SEDO (Social Entropy Diffusion Optimization) API  
+[[Development Documentation]](development.md) | [[中文]](#sedo-social-entropy-diffusion-optimization-api-文档)
+
+## 1. Module Structure
+- **base.py**: Define Optimizer Abstract Base Class.
+- **optimizer.py**: Implement SEDO Optimizer Core Logic.
+- **particle.py**: Define Quantum Particle and its State.
+- **search.py**: Provide Hyperparameter Search Tool based on SEDO.
+- **utils.py**: Provide Assistive Tools, such as Plotting, Saving and Loading Checkpoints.
+
+## 2. Classes and Functions
+
+### 2.1 `BaseOptimizer` (Abstract Base Class)  
+**File**: `base.py`  
+
+**Description**: Define the basic interface for optimizers.  
+
+**Functions**:
+- `optimize(self, max_iter: int) -> None`: Execute the optimization process.  
+  - **Parameters**:
+    - `max_iter`: Maximum number of iterations.
+- `get_best_solution(self) -> Any`: Get the current best solution.
+
+### 2.2 `SEDOptimizer`  
+**File**: `optimizer.py`  
+
+**Description**: The core implementation of the SEDO optimizer, simulating information propagation in cultural space and balancing exploration and exploitation using entropy flow mechanisms.
+
+**Initialization Parameters**:
+- `objective_func`: Objective function that takes a `np.ndarray` as input and returns a float or list (for multi-objective).
+- `problem_dim`: Problem dimensionality.
+- `n_particles`: Number of particles, default is 30.
+- `barrier_height`: Barrier height affecting cultural distance decay, default is 0.5.
+- `entropy_threshold`: Entropy threshold to control exploration/exploitation switch, default is 0.7.
+- `temperature`: Initial system temperature, default is 1.0.
+- `bounds`: Search bounds for each dimension, default is `[(-5, 5)] * problem_dim`.
+- `multi_objective`: Whether to enable multi-objective optimization, default is `False`.
+- `use_parallel`: Whether to use parallel computation, default is `True`.
+- `init_method`: Initialization method, options are `['uniform', 'lhs', 'orthogonal']`, default is `'uniform'`.
+- `discrete_dims`: List of indices for discrete variables, default is `None`.
+
+**Methods**:
+- `optimize(self, max_iter: int, callback: Optional[Callable] = None) -> None`: Run the optimization process.  
+  - **Parameters**:
+    - `max_iter`: Maximum number of iterations.
+    - `callback`: Callback function for monitoring optimization progress.
+- `get_best_solution(self) -> Any`: Retrieve the current best solution.  
+  - **Returns**:
+    - For single-objective: Best position (`np.ndarray`).
+    - For multi-objective: List of non-dominated solutions (`List[np.ndarray]`).
+
+**Internal Methods**:
+- `_evaluate_fitness(self)`: Evaluate particle fitness.
+- `_is_dominated(self, fit1, fit2)`: Check if `fit1` dominates `fit2` (used in multi-objective optimization).
+- `_update_pareto_front(self, particle)`: Update Pareto front and maintain external archive.
+- `_cultural_similarity(self, p1, p2)`: Compute cultural similarity between two particles (cosine similarity).
+- `_calculate_entropy_flow(self, particle, neighbors)`: Calculate entropy flow between particle and neighbors.
+- `_dynamic_collapse(self)`: Dynamic collapse mechanism to determine exploration/exploitation state based on entropy.
+- `_cultural_crossover(self, p1, p2)`: Cultural dimension crossover operation.
+- `_update_bass_model(self, curr_iter, max_iter)`: Update innovation and imitation coefficients in the Bass diffusion model.
+- `_calculate_diversity(self)`: Compute population diversity.
+- `_update_diversity(self)`: Record diversity changes over time.
+- `_restart_if_stagnant(self, threshold: float = 0.001, window: int = 5)`: Diversity-based restart mechanism to prevent premature convergence.
+- `_fine_tune_development(self, particle)`: Local fine-tuning strategy for exploitation.
+
+### 2.3 `QuantumParticle`  
+**File**: `particle.py`  
+
+**Description**: Represents a quantum-state particle with cultural dimensions, entropy, position, etc.
+
+**Initialization Parameters**:
+- `problem_dim`: Dimension of the problem.
+- `discrete_dims`: List of indices for discrete variables, default is `None`.
+
+**Attributes**:
+- `cultural_dimension`: Cultural dimension vector (`np.ndarray`).
+- `entropy_phase`: Entropy phase (complex number).
+- `positive_entropy`: Positive entropy value.
+- `negative_entropy`: Negative entropy value.
+- `position`: Particle position (`np.ndarray`).
+- `velocity`: Particle velocity (`np.ndarray`).
+- `fitness`: Particle fitness.
+- `collapsed`: Boolean indicating whether the particle has collapsed.
+- `state`: Particle state (`ExplorationState` or `ExploitationState`).
+
+**Methods**:
+- `set_position(self, position: np.ndarray, bounds: List[Tuple[float, float]]) -> None`: Set particle position with boundary constraints.
+- `init_random_position(self, bounds: List[Tuple[float, float]], method: str = 'uniform') -> None`: Randomly initialize particle position.  
+  - **Parameters**:
+    - `bounds`: Search range per dimension.
+    - `method`: Initialization method, options are `['uniform', 'lhs', 'orthogonal']`.
+
+### 2.4 `SEDSearchCV`  
+**File**: `search.py`  
+
+**Description**: Hyperparameter search tool based on SEDO, used for optimizing machine learning model parameters.
+
+**Initialization Parameters**:
+- `estimator`: Function that evaluates ML models; takes parameter vector and returns score.
+- `param_space`: Dictionary mapping parameter names to their ranges.
+- `n_particles`: Number of particles, default is 30.
+- `max_iter`: Maximum number of iterations, default is 100.
+- `scoring`: Scoring function, default assumes minimization.
+- `cv`: Number of cross-validation folds, default is 3.
+- `verbose`: Verbosity level, default is 1.
+
+**Methods**:
+- `fit(self, X=None, y=None) -> None`: Perform hyperparameter search.  
+  - **Parameters**:
+    - `X`: Training data (optional).
+    - `y`: Target values (optional).
+- `plot_convergence(self) -> None`: Plot convergence curve.
+
+### 2.5 Utility Functions  
+**File**: `utils.py`  
+
+**Functions**:
+- `plot_convergence(history: List[Dict[str, float]]) -> None`: Plot optimization convergence curve.  
+  - **Parameters**:
+    - `history`: List of dictionaries containing best fitness per generation.
+- `save_checkpoint(optimizer, file_path: str) -> None`: Save optimizer state to file.  
+  - **Parameters**:
+    - `optimizer`: Optimizer instance.
+    - `file_path`: Path to save file.
+- `load_checkpoint(file_path: str) -> dict`: Load optimizer state from file.  
+  - **Parameters**:
+    - `file_path`: File path.
+  - **Returns**: Dictionary containing optimizer state.
+- `export_results(optimizer, file_path: str, fmt: str = 'json') -> None`: Export optimization results.  
+  - **Parameters**:
+    - `optimizer`: Optimizer instance.
+    - `file_path`: Output file path.
+    - `fmt`: Output format, options are `['json', 'csv']`.
+
+---
+
+## 3. Example Code
+
+### 3.1 Using `SEDOptimizer` for Single-Objective Optimization
+```python
+import numpy as np
+from optimizer import SEDOptimizer
+
+# Define objective function
+def objective_function(x):
+    return np.sum(x**2)
+
+# Initialize optimizer
+optimizer = SEDOptimizer(
+    objective_func=objective_function,
+    problem_dim=5,
+    n_particles=30,
+    bounds=[(-10, 10)] * 5
+)
+
+# Run optimization
+optimizer.optimize(max_iter=100)
+
+# Get best solution
+best_solution = optimizer.get_best_solution()
+print("Best Solution:", best_solution)
+```
+
+### 3.2 Using `SEDSearchCV` for Hyperparameter Tuning
+```python
+from search import SEDSearchCV
+
+# Define estimator function
+def estimator(params):
+    # Example: simple objective function
+    return np.sum(params**2)
+
+# Define parameter space
+param_space = {
+    'param1': [0, 1, 2, 3],
+    'param2': [0.1, 0.2, 0.3, 0.4],
+    'param3': [10, 20, 30, 40]
+}
+
+# Initialize search tool
+search_cv = SEDSearchCV(
+    estimator=estimator,
+    param_space=param_space,
+    n_particles=20,
+    max_iter=50
+)
+
+# Run search
+search_cv.fit()
+
+# Output best parameters
+print("Best Parameters:", search_cv.best_params_)
+print("Best Score:", search_cv.best_score_)
+```
+
+---
+
+## 4. Notes
+- In multi-objective optimization, `objective_func` should return a list of multiple objectives.
+- When using parallel computing, ensure the objective function can be serialized.
+- Restart and dynamic collapse mechanisms depend on diversity tracking; adjust related parameters to avoid premature convergence or local optima.
+
+---
+
+## 5. Version Info
+- **Version**: 1.0.0
+- **Last Updated**: May 4, 2025
