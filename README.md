@@ -24,7 +24,7 @@ pip install sedo
 ```
 
 ### 快速开始
-
+**不要使用 lambda 函数作为目标函数！**
 ```python
 from sedo import SEDOptimizer
 
@@ -136,6 +136,7 @@ pip install sedo
 
 ### Quick Start
 
+**Do Not USE lambda function as objective function!**
 ```python
 from sedo import SEDOptimizer
 
