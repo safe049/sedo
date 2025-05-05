@@ -3,9 +3,7 @@ import random
 from typing import List, Tuple, Optional, Callable, Union
 from scipy.spatial.distance import cosine
 from concurrent.futures import ProcessPoolExecutor
-from scipy.optimize import minimize
 from .particle import QuantumParticle, ExplorationState, ExploitationState
-
 
 class SEDOptimizer:
     def __init__(
@@ -21,7 +19,7 @@ class SEDOptimizer:
         use_parallel: bool = True,
         init_method: str = 'uniform',
         discrete_dims: Optional[List[int]] = None,
-        is_permutation: bool = False  # 新增参数
+        is_permutation: bool = False
     ):
         self.objective_func = objective_func
         self.problem_dim = problem_dim
@@ -31,11 +29,19 @@ class SEDOptimizer:
         self.use_parallel = use_parallel
         self.init_method = init_method
         self.discrete_dims = discrete_dims or []
-        self.is_permutation = is_permutation  # 是否为排列型问题
-
-        self.barrier_height = 0.3 if self._is_unimodal() else barrier_height
-
+        self.is_permutation = is_permutation
+        self.barrier_height = barrier_height
         self.particles = []
+
+        # 自动检测是否为离散型函数
+        self.is_discrete_problem = self._is_discrete_function()
+
+        # 如果是整体离散问题，则将所有维度设为离散
+        if self.is_discrete_problem:
+            self.discrete_dims = list(range(self.problem_dim))
+        else:
+            self.discrete_dims = discrete_dims or []
+
         for _ in range(n_particles):
             p = QuantumParticle(problem_dim, self.discrete_dims)
             if self.is_permutation:
@@ -49,22 +55,87 @@ class SEDOptimizer:
 
         self.global_best_pos = None
         self.global_best_fit = float('inf') if not multi_objective else []
-
         self.temperature = temperature
         self.p_innovate = 0.1
         self.q_imitate = 0.5
         self.entropy_threshold = entropy_threshold
-
         self.diversity_history = []
         self.history = []
+        self.a = 2.0  # WOA 参数：线性递减系数
 
         if self.multi_objective:
             self.archive = []
 
+    def _is_discrete_function(self, num_samples=50, threshold=1e-6):
+        samples = [self._sample_in_bounds() for _ in range(num_samples)]
+        
+        if self.is_permutation:
+            float_samples = [np.argsort(s).astype(int) for s in samples]
+        else:
+            float_samples = samples
+        
+        int_samples = [np.round(s).astype(int) for s in samples]
+
+        try:
+            float_fitness = [self.objective_func(s) for s in float_samples]
+            int_fitness = [self.objective_func(s) for s in int_samples]
+        except Exception as e:
+            print(f"Warning: Error during discrete function detection: {e}")
+            return False
+
+        if isinstance(float_fitness[0], (list, np.ndarray)):
+            diffs = []
+            for f, i_f in zip(float_fitness, int_fitness):
+                dominated = self._is_dominated(f, i_f) or self._is_dominated(i_f, f)
+                diff = 0 if dominated else 1
+                diffs.append(diff)
+            avg_diff = np.mean(diffs)
+        else:
+            diffs = [abs(f - i_f) for f, i_f in zip(float_fitness, int_fitness)]
+            avg_diff = np.mean(diffs)
+
+        return avg_diff < threshold
+
+    def _update_position_whale(self, p, current_iter, max_iter):
+        a = 2 - current_iter * (2 / max_iter)  # 使用外部传入的迭代数
+        r1 = np.random.rand(self.problem_dim)
+        r2 = np.random.rand(self.problem_dim)
+        A = 2 * a * r1 - a
+        C = 2 * r2
+        b = 1
+        l = np.random.uniform(-1, 1, self.problem_dim)
+
+        p_ratio = np.random.rand()
+
+        if p_ratio < 0.5:
+            if (np.abs(A) < 1).all():
+                # 包围猎物
+                D = abs(C * self.global_best_pos - p.position)
+                new_pos = self.global_best_pos - A * D
+            else:
+                # 随机搜索
+                rand_index = np.random.randint(0, len(self.particles))
+                x_rand = self.particles[rand_index].position
+                D = abs(C * x_rand - p.position)
+                new_pos = x_rand - A * D
+        else:
+            # 气泡网攻击
+            D = abs(self.global_best_pos - p.position)
+            new_pos = D * np.exp(b * l) * np.cos(2 * np.pi * l) + self.global_best_pos
+
+        # 边界处理
+        for i in range(self.problem_dim):
+            low, high = self.bounds[i]
+            new_pos[i] = np.clip(new_pos[i], low, high)
+
+        if self.is_discrete_problem:
+            new_pos = np.round(new_pos).astype(int)
+
+        p.position = new_pos
+
     def _evaluate_fitness(self):
         positions = []
         decoded_routes = []
-
         for p in self.particles:
             if self.is_permutation:
                 route = np.argsort(p.position).astype(int)
@@ -72,8 +143,8 @@ class SEDOptimizer:
                 positions.append(route)
             else:
                 pos = p.position.copy()
-                positions.append(pos)
                 decoded_routes.append(pos)
+                positions.append(pos)
 
         if self.use_parallel:
             with ProcessPoolExecutor() as executor:
@@ -106,6 +177,7 @@ class SEDOptimizer:
         self._restart_if_stagnant()
         self._differential_mutation()
         self._memory_perturbation()
+
         avg_fit = np.mean([f if not self.multi_objective else f[0] for f in fits])
         diversity = self._calculate_diversity()
         self.history.append({
@@ -226,17 +298,11 @@ class SEDOptimizer:
         pass  # 可选实现
 
     def _local_search_2opt(self, particle):
-        """
-        使用 2-opt 算法对排列型解进行局部优化
-        :param particle: 当前粒子
-        """
         if not self.is_permutation:
             return
-
         route = np.argsort(particle.position).astype(int)
         best_route = route.copy()
         best_fitness = self.objective_func(best_route)
-
         improved = True
         while improved:
             improved = False
@@ -244,14 +310,11 @@ class SEDOptimizer:
                 for j in range(i + 1, len(route) - 1):
                     new_route = self._two_opt_swap(best_route, i, j)
                     new_fitness = self.objective_func(new_route)
-
-                    # 单目标优化
                     if not self.multi_objective:
                         if new_fitness < best_fitness:
                             best_route = new_route
                             best_fitness = new_fitness
                             improved = True
-                    # 多目标优化
                     else:
                         if self._is_dominated(new_fitness, best_fitness) and not self._is_dominated(best_fitness, new_fitness):
                             best_route = new_route
@@ -259,11 +322,10 @@ class SEDOptimizer:
                             improved = True
             if improved:
                 particle.position = np.random.rand(self.problem_dim)
-                particle.position[best_route] += np.linspace(0, 1, len(best_route)) * 0.01  # 微调以保持顺序
+                particle.position[best_route] += np.linspace(0, 1, len(best_route)) * 0.01
                 particle.fitness = best_fitness
 
     def _two_opt_swap(self, route, i, j):
-        """执行一次 2-opt swap"""
         new_route = np.copy(route)
         new_route[i:j+1] = new_route[i:j+1][::-1]
         return new_route
@@ -271,8 +333,6 @@ class SEDOptimizer:
     def _is_unimodal(self, num_samples=50, threshold=0.1):
         if self.multi_objective:
             return False
-        if "Sphere" in self.objective_func.__name__ or "Rastrigin" in self.objective_func.__name__:
-            return True
         samples = np.array([self._sample_in_bounds() for _ in range(num_samples)])
         fits = np.array([self.objective_func(x) for x in samples])
         best_idx = np.argmin(fits)
@@ -292,8 +352,11 @@ class SEDOptimizer:
 
     def optimize(self, max_iter, callback=None):
         self._evaluate_fitness()
+
         for iter in range(max_iter):
             self._update_bass_model(iter, max_iter)
+            self.a = 2 - iter * (2 / max_iter)  # WOA 动态参数
+
             for i, p in enumerate(self.particles):
                 neighbors = self.particles[:i] + self.particles[i+1:]
                 flow = self._calculate_entropy_flow(p, neighbors)
@@ -301,7 +364,9 @@ class SEDOptimizer:
                 p.negative_entropy += np.imag(flow) * 0.01
                 p.positive_entropy = np.clip(p.positive_entropy, 0, 1)
                 p.negative_entropy = np.clip(p.negative_entropy, 0, 1)
+
             self._dynamic_collapse()
+
             for p in self.particles:
                 if p.collapsed:
                     if isinstance(p.state, ExploitationState):
@@ -318,20 +383,21 @@ class SEDOptimizer:
                     else:
                         cognitive = 1.0 * random.random() * (self.global_best_pos - p.position)
                         p.velocity = 0.5 * p.velocity + cognitive
-                new_pos = p.position + p.velocity
-                if self.is_permutation:
-                    p.position = np.clip(new_pos, 0, 1)
-                else:
-                    p.set_position(new_pos, self.bounds)
+
+                # 使用 WOA 风格的位置更新
+                self._update_position_whale(p, iter, max_iter)
+
                 if len(self.particles) > 1:
                     others = [x for x in self.particles if x != p]
                     partner = random.choice(others)
                     new_dim = self._cultural_crossover(p, partner)
                     p.cultural_dimension = new_dim
+
                 self._fine_tune_development(p)
 
             self._evaluate_fitness()
-          # 后期阶段启用局部搜索
+
+            # 后期阶段启用局部搜索
             if iter > int(max_iter * 0.7):
                 top_k = 5
                 sorted_particles = sorted(self.particles, key=lambda x: x.fitness if not self.multi_objective else sum(x.fitness))
@@ -339,21 +405,80 @@ class SEDOptimizer:
                 for p in candidates:
                     self._local_search_2opt(p)
                 self._evaluate_fitness()
+
+            # SA 补充
+            if iter > int(max_iter * 0.8):
+                for p in random.sample(self.particles, 5):
+                    self._simulated_annealing_step(p, temp=self.temperature)
+
+            # GA 补充
+            if self.is_discrete_problem and iter % 5 == 0:
+                parents = sorted(self.particles, key=lambda x: x.fitness)[:5]
+                for _ in range(3):  # 添加几个新个体
+                    p1, p2 = random.sample(parents, 2)
+                    child_pos = self._ga_crossover(p1.position, p2.position)
+                    child_pos = self._ga_mutate(child_pos)
+                    child = QuantumParticle(self.problem_dim, discrete_dims=self.discrete_dims)
+                    child.position = child_pos
+                    child.fitness = self.objective_func(child.position)
+                    self.particles.append(child)
+
+            self._evaluate_fitness()
             print(f"Iteration {iter+1}/{max_iter}, Best Fitness: {self.global_best_fit}")
             if callback:
                 callback(self)
 
+    def _simulated_annealing_step(self, current_particle, temp):
+        neighbor = current_particle.position.copy()
+        if self.is_permutation:
+            i, j = random.sample(range(self.problem_dim), 2)
+            neighbor[i], neighbor[j] = neighbor[j], neighbor[i]
+            route = np.argsort(neighbor).astype(int)
+            new_solution = route
+        elif self.is_discrete_problem:
+            idx = random.randint(0, self.problem_dim - 1)
+            low, high = self.bounds[idx]
+            neighbor[idx] = np.random.randint(low, high + 1)
+            new_solution = np.round(neighbor).astype(int)
+        else:
+            neighbor += np.random.normal(0, 0.1)
+            for i in range(self.problem_dim):
+                neighbor[i] = np.clip(neighbor[i], *self.bounds[i])
+            new_solution = neighbor
+
+        curr_fit = current_particle.fitness
+        new_fit = self.objective_func(new_solution)
+
+        if not self.multi_objective:
+            delta = new_fit - curr_fit
+            if delta < 0 or random.random() < np.exp(-delta / temp):
+                current_particle.position = new_solution
+                current_particle.fitness = new_fit
+        else:
+            if self._is_dominated(new_fit, curr_fit) or random.random() < np.exp(-sum(new_fit)/temp):
+                current_particle.position = new_solution
+                current_particle.fitness = new_fit
+
+    def _ga_crossover(self, parent1, parent2):
+        point = random.randint(1, self.problem_dim - 1)
+        child = np.concatenate((parent1[:point], parent2[point:]))
+        return child
+
+    def _ga_mutate(self, individual, mutation_rate=0.1):
+        if random.random() < mutation_rate:
+            idx = random.randint(0, self.problem_dim - 1)
+            low, high = self.bounds[idx]
+            if self.is_discrete_problem:
+                individual[idx] = np.random.randint(low, high + 1)
+            else:
+                individual[idx] += np.random.normal(0, 0.1)
+                individual[idx] = np.clip(individual[idx], low, high)
+        return individual
 
     def _remove_duplicate_solutions(self, solutions):
-        """
-        过滤重复解（支持浮点数和整数）
-        :param solutions: list of objects (list/tuple/np.ndarray)
-        :return: 去重后的解
-        """
         seen = set()
         unique_solutions = []
         for sol in solutions:
-            # 如果是 numpy 数组，保留五位小数防止浮点误差，并将 np.int64 转换为 int
             if isinstance(sol, np.ndarray):
                 key = tuple(np.round(sol, 5).astype(int))
             elif isinstance(sol, list):
@@ -365,7 +490,6 @@ class SEDOptimizer:
                 unique_solutions.append(sol)
         return unique_solutions
 
-
     def get_best_solution(self):
         if self.multi_objective:
             raw_solutions = [p.fitness for p in self.global_best_fit]
@@ -374,6 +498,3 @@ class SEDOptimizer:
             return np.argsort(self.global_best_pos).astype(int)
         else:
             return self.global_best_pos
-
-# TODO: 离散型优化问题：
-# Rastrigin与Michalewicz函数的适应度不良

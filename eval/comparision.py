@@ -5,6 +5,8 @@ from typing import List, Tuple, Callable, Optional, Union
 import matplotlib.pyplot as plt
 
 from sedo.optimizer import SEDOptimizer 
+from gwo_optimizer import GWOOptimizer
+from woa_optimizer import WOAOptimizer
 
 # 自定义 PSO 实现（用于对比）
 class PSOOptimizer:
@@ -194,16 +196,22 @@ if __name__ == "__main__":
 
     results_table = []
 
-    # 新增：用于保存所有函数的平均历史
     all_sedo_histories = []
     all_pso_histories = []
+    all_gwo_histories = []
+    all_woa_histories = []
 
     for func_name, func in test_functions:
         print(f"\n=== Testing on {func_name} Function ===")
         sedo_fitnesses = []
         pso_fitnesses = []
+        gwo_fitnesses = []
+        woa_fitnesses = []
+
         sedo_histories = []
         pso_histories = []
+        gwo_histories = []
+        woa_histories = []
 
         for run in range(N_RUNS):
             seed = run * 100
@@ -236,11 +244,41 @@ if __name__ == "__main__":
             pso_fitnesses.append(pso_opt.gbest_fitness)
             pso_histories.append(pso_opt.get_convergence_history())
 
+            # GWO
+            print("\nRunning GWO...")
+            gwo_opt = GWOOptimizer(
+                objective_func=func,
+                problem_dim=DIMENSIONS,
+                n_particles=30,
+                bounds=BOUNDS,
+                use_parallel=False
+            )
+            gwo_opt.optimize(MAX_ITER)
+            gwo_fitnesses.append(gwo_opt.best_fitness)
+            gwo_histories.append(gwo_opt.get_convergence_history())
+
+            # WOA
+            print("\nRunning WOA...")
+            woa_opt = WOAOptimizer(
+                objective_func=func,
+                problem_dim=DIMENSIONS,
+                n_particles=30,
+                bounds=BOUNDS,
+                use_parallel=False
+            )
+            woa_opt.optimize(MAX_ITER)
+            woa_fitnesses.append(woa_opt.best_fitness)
+            woa_histories.append(woa_opt.get_convergence_history())
+
         # 计算平均和标准差
         avg_sedo = statistics.mean(sedo_fitnesses)
         std_sedo = statistics.stdev(sedo_fitnesses) if len(sedo_fitnesses) > 1 else 0
         avg_pso = statistics.mean(pso_fitnesses)
         std_pso = statistics.stdev(pso_fitnesses) if len(pso_fitnesses) > 1 else 0
+        avg_gwo = statistics.mean(gwo_fitnesses)
+        std_gwo = statistics.stdev(gwo_fitnesses) if len(gwo_fitnesses) > 1 else 0
+        avg_woa = statistics.mean(woa_fitnesses)
+        std_woa = statistics.stdev(woa_fitnesses) if len(woa_fitnesses) > 1 else 0
 
         # 成功率计算（根据阈值）
         success_thresholds = {
@@ -254,33 +292,26 @@ if __name__ == "__main__":
         }
         sr_sedo = sum(1 for f in sedo_fitnesses if f <= success_thresholds.get(func_name, float('inf'))) / N_RUNS
         sr_pso = sum(1 for f in pso_fitnesses if f <= success_thresholds.get(func_name, float('inf'))) / N_RUNS
+        sr_gwo = sum(1 for f in gwo_fitnesses if f <= success_thresholds.get(func_name, float('inf'))) / N_RUNS
+        sr_woa = sum(1 for f in woa_fitnesses if f <= success_thresholds.get(func_name, float('inf'))) / N_RUNS
 
-        results_table.append({
-            "Function": func_name,
-            "Algorithm": "SEDO",
-            "Avg Fitness": avg_sedo,
-            "Std Dev": std_sedo,
-            "Success Rate": sr_sedo
-        })
-        results_table.append({
-            "Function": func_name,
-            "Algorithm": "PSO",
-            "Avg Fitness": avg_pso,
-            "Std Dev": std_pso,
-            "Success Rate": sr_pso
-        })
+        results_table.extend([
+            {"Function": func_name, "Algorithm": "SEDO", "Avg Fitness": avg_sedo, "Std Dev": std_sedo, "Success Rate": sr_sedo},
+            {"Function": func_name, "Algorithm": "PSO", "Avg Fitness": avg_pso, "Std Dev": std_pso, "Success Rate": sr_pso},
+            {"Function": func_name, "Algorithm": "GWO", "Avg Fitness": avg_gwo, "Std Dev": std_gwo, "Success Rate": sr_gwo},
+            {"Function": func_name, "Algorithm": "WOA", "Avg Fitness": avg_woa, "Std Dev": std_woa, "Success Rate": sr_woa}
+        ])
 
-        # 保存平均历史用于最终绘图
-        avg_sedo_history = np.mean(align_histories(sedo_histories), axis=0).tolist()
-        avg_pso_history = np.mean(align_histories(pso_histories), axis=0).tolist()
-        all_sedo_histories.append(avg_sedo_history)
-        all_pso_histories.append(avg_pso_history)
+        # 保存历史用于绘图
+        all_sedo_histories.append(np.mean(align_histories(sedo_histories), axis=0).tolist())
+        all_pso_histories.append(np.mean(align_histories(pso_histories), axis=0).tolist())
+        all_gwo_histories.append(np.mean(align_histories(gwo_histories), axis=0).tolist())
+        all_woa_histories.append(np.mean(align_histories(woa_histories), axis=0).tolist())
 
-        # 绘图：每个函数单独一张图
-        #plot_convergence(sedo_histories, pso_histories, f"{func_name} Function (Average of {N_RUNS} runs)")
+        # 可选：绘制每个函数的收敛曲线
+        # plot_convergence(sedo_histories, pso_histories, gwo_histories, woa_histories, f"{func_name} Function")
 
-
-    # 输出表格
+    # 输出结果表格
     print("\nAll Tests Complete!")
     print("=" * 80)
     print(f"{'Function':<15} {'Algorithm':<10} {'Avg Fitness':<15} {'Std Dev':<15} {'SR (%)':<10}")
@@ -289,3 +320,6 @@ if __name__ == "__main__":
         print(f"{row['Function']:<15} {row['Algorithm']:<10} "
               f"{row['Avg Fitness']:<15.6f} {row['Std Dev']:<15.6f} {row['Success Rate']*100:<10.2f}")
     print("=" * 80)
+
+    # 可选：绘制所有函数的平均收敛曲线
+    plot_all_convergences(all_sedo_histories, all_pso_histories, all_gwo_histories, all_woa_histories)
